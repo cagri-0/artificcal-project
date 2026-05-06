@@ -25,9 +25,10 @@ We also have a keyword shortcut ("2026", "latest", "new"...) so the
 behavior is predictable for the demo even if the LLM is offline.
 """
 
+import os
 from typing import TypedDict, Literal
 from langgraph.graph import StateGraph, END
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from rag import retrieve_games
@@ -45,10 +46,12 @@ class AgentState(TypedDict):
 
 
 # ---------- LLM ----------
-# A single shared LLM. ChatOpenAI is a LangChain abstraction (mandatory tech).
-# Gemini bazen 503 (overloaded) dönebilir. Otomatik 2 kez tekrar denesin.
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+# GitHub Models API (OpenAI-compatible endpoint)
+# Requires GITHUB_TOKEN env variable with models:read scope
+llm = ChatOpenAI(
+    model="gpt-4o-mini",
+    api_key=os.environ.get("GITHUB_TOKEN") or "",
+    base_url="https://models.github.ai/inference",
     temperature=0.4,
     max_retries=3,
 )
@@ -167,9 +170,11 @@ def generate_node(state: AgentState) -> AgentState:
     print("[generate] composing final answer...")
     chain = GENERATION_PROMPT | llm
 
-    # Gemini Flash yoğunsa Lite modeline düş.
-    fallback_llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
+    # GitHub Models fallback
+    fallback_llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        api_key=os.environ.get("GITHUB_TOKEN"),
+        base_url="https://models.github.ai/inference",
         temperature=0.4,
         max_retries=3,
     )
@@ -191,7 +196,7 @@ def generate_node(state: AgentState) -> AgentState:
             return {
                 **state,
                 "answer": (
-                    "⚠️ Gemini is currently overloaded. "
+                    "⚠️ GitHub Models is currently unavailable. "
                     "Please try again in a few seconds.\n\n"
                     f"(Technical detail: {e2})"
                 ),
